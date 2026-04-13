@@ -1,0 +1,17 @@
+{
+  "name": "nosto-baba-firebase",
+  "version": "1.0.0",
+  "description": "নস্টো বাবা - Firebase + Vertex AI Chat & Image Generator",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^10.12.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
