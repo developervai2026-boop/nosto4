@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🤖 নস্টো বাবা - AI চ্যাট & ইমেজ জেনারেটর</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f7fa; color: #333; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    header { text-align: center; padding: 20px 0; border-bottom: 2px solid #4f46e5; margin-bottom: 20px; }
+    header h1 { color: #4f46e5; font-size: 1.8rem; }
+    header p { color: #666; margin-top: 5px; }
+    
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 12px; border: none; background: #e0e7ff; color: #4f46e5; border-radius: 8px; cursor: pointer; font-weight: 500; transition: 0.2s; }
+    .tab-btn.active { background: #4f46e5; color: white; }
+    .tab-btn:hover { opacity: 0.9; }
+    
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    /* Chat Styles */
+    #chat-history { height: 400px; overflow-y: auto; background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #e5e7eb; }
+    .message { margin: 10px 0; padding: 12px 16px; border-radius: 12px; max-width: 85%; }
+    .message.user { background: #4f46e5; color: white; margin-left: auto; border-bottom-right-radius: 4px; }
+    .message.assistant { background: #f3f4f6; color: #333; border-bottom-left-radius: 4px; }
+    .message.system { background: #fef3c7; color: #92400e; font-style: italic; }
+    
+    .chat-input { display: flex; gap: 10px; }
+    .chat-input textarea { flex: 1; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; resize: none; font-size: 1rem; }
+    .chat-input button { padding: 12px 24px; background: #4f46e5; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    .chat-input button:hover { background: #4338ca; }
+    .chat-input button:disabled { background: #9ca3af; cursor: not-allowed; }
+    
+    /* Image Gen Styles */
+    #image-form { display: flex; gap: 10px; margin-bottom: 15px; }
+    #image-form input { flex: 1; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+    #image-form button { padding: 12px 24px; background: #059669; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    #image-form button:hover { background: #047857; }
+    #image-result { text-align: center; }
+    #image-result img { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .loading { text-align: center; color: #6b7280; padding: 20px; }
+    
+    /* Utility */
+    .hidden { display: none !important; }
+    .error { color: #dc2626; background: #fef2f2; padding: 10px; border-radius: 8px; margin: 10px 0; }
+    .success { color: #059669; background: #ecfdf5; padding: 10px; border-radius: 8px; margin: 10px 0; }
+    
+    @media (max-width: 600px) {
+      .container { padding: 10px; }
+      .message { max-width: 95%; }
+      .tabs { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 নস্টো বাবা</h1>
+      <p>AI চ্যাটবট + ইমেজ জেনারেটর • বাংলা & English</p>
+    </header>
+    
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="chat">💬 চ্যাট</button>
+      <button class="tab-btn" data-tab="image">🎨 ইমেজ জেনারেট</button>
+    </div>
+    
+    <!-- Chat Tab -->
+    <div id="chat" class="tab-content active">
+      <div id="chat-history">
+        <div class="message assistant">হ্যালো! আমি নস্টো বাবা 😊 আমি বাংলা এবং ইংরেজি দুই ভাষাতেই কথা বলতে পারি। আপনাকে কীভাবে সাহায্য করতে পারি?</div>
+      </div>
+      <div class="chat-input">
+        <textarea id="user-input" placeholder="আপনার প্রশ্ন লিখুন..." rows="2"></textarea>
+        <button id="send-btn">পাঠান</button>
+      </div>
+    </div>
+    
+    <!-- Image Tab -->
+    <div id="image" class="tab-content">
+      <form id="image-form">
+        <input type="text" id="image-prompt" placeholder="ইমেজের বর্ণনা লিখুন (যেমন: বাংলা গ্রামের দৃশ্য, কাঁঠাল গাছ, নদী)" required />
+        <button type="submit">জেনারেট করুন</button>
+      </form>
+      <div id="image-result"></div>
+    </div>
+    
+    <div id="status"></div>
+  </div>
+
+  <script type="module">
+    import { setupAppCheck } from './src/app-check.js';
+    import { sendMessageStream, chatWithContext, saveMessage } from './src/chat.js';
+    import { generateImage } from './src/image-gen.js';
+    
+    // App Check init
+    setupAppCheck();
+    
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+    
+    // Chat functionality
+    const chatHistory = document.getElementById('chat-history');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+    const status = document.getElementById('status');
+    let userId = localStorage.getItem('nosto_user_id') || 'user_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('nosto_user_id', userId);
+    
+    function addMessage(content, role) {
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      div.textContent = content;
+      chatHistory.appendChild(div);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+    
+    async function handleSend() {
+      const message = userInput.value.trim();
+      if (!message) return;
+      
+      addMessage(message, 'user');
+      userInput.value = '';
+      sendBtn.disabled = true;
+      
+      // Typing indicator
+      const typing = document.createElement('div');
+      typing.className = 'message assistant';
+      typing.textContent = 'নস্টো বাবা টাইপ করছে...';
+      typing.id = 'typing-indicator';
+      chatHistory.appendChild(typing);
+      
+      try {
+        let fullResponse = '';
+        await sendMessageStream(message, (chunk) => {
+          const typingEl = document.getElementById('typing-indicator');
+          if (typingEl) typingEl.remove();
+          
+          if (!document.querySelector('.message.assistant:last-of-type')?.textContent.endsWith(chunk)) {
+            fullResponse += chunk;
+            // Update or create response message
+            let lastMsg = chatHistory.querySelector('.message.assistant:last-of-type');
+            if (lastMsg && !lastMsg.dataset.streaming) {
+              lastMsg = document.createElement('div');
+              lastMsg.className = 'message assistant';
+              lastMsg.dataset.streaming = 'true';
+              chatHistory.appendChild(lastMsg);
+            }
+            if (lastMsg) lastMsg.textContent = fullResponse;
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+          }
+        });
+        
+        // Save to Firestore
+        await saveMessage(userId, 'user', message);
+        await saveMessage(userId, 'assistant', fullResponse);
+        
+      } catch (error) {
+        console.error(error);
+        const typingEl = document.getElementById('typing-indicator');
+        if (typingEl) typingEl.remove();
+        addMessage('দুঃখিত, একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।', 'assistant');
+        status.innerHTML = `<div class="error">❌ ${error.message}</div>`;
+      } finally {
+        sendBtn.disabled = false;
+        userInput.focus();
+      }
+    }
+    
+    sendBtn.addEventListener('click', handleSend);
+    userInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
+    
+    // Image generation
+    const imageForm = document.getElementById('image-form');
+    const imagePrompt = document.getElementById('image-prompt');
+    const imageResult = document.getElementById('image-result');
+    
+    imageForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prompt = imagePrompt.value.trim();
+      if (!prompt) return;
+      
+      imageResult.innerHTML = '<div class="loading">🎨 ইমেজ তৈরি হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন</div>';
+      
+      try {
+        const imageUrl = await generateImage(prompt);
+        if (imageUrl) {
+          imageResult.innerHTML = `<img src="${imageUrl}" alt="Generated image" />`;
+          status.innerHTML = '<div class="success">✅ ইমেজ সফলভাবে তৈরি হয়েছে!</div>';
+        } else {
+          throw new Error('ইমেজ জেনারেশন ব্যর্থ হয়েছে');
+        }
+      } catch (error) {
+        console.error(error);
+        imageResult.innerHTML = `<div class="error">❌ ইমেজ তৈরি করতে সমস্যা: ${error.message}</div>`;
+      }
+    });
+    
+    // Welcome message
+    console.log('🤖 নস্টো বাবা লোড হয়েছে!');
+  </script>
+</body>
+</html>
